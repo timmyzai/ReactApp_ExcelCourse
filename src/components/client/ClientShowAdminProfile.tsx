@@ -1,8 +1,9 @@
-// src/components/ClientShowAdminProfile.tsx
+// src/components/client/ClientShowAdminProfile.tsx
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { AdminProfile } from '../Interface/interfaces';
+import '../../assets/styles/ClientShowAdminProfile.css';
 
 const ClientShowAdminProfile: React.FC = () => {
   const [profile, setProfile] = useState<AdminProfile[]>([]);

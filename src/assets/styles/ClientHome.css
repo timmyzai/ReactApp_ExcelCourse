@@ -1,0 +1,16 @@
+/* src/components/client/ClientHome.css */
+.trainer-profile,
+.courses {
+    margin: 20px 0;
+}
+
+.trainer-profile h2,
+.courses h2 {
+    font-size: 2em;
+    color: #007bff;
+}
+
+footer {
+    text-align: center;
+    margin-top: 20px;
+}

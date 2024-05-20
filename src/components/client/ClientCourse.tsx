@@ -1,8 +1,9 @@
-// src/components/ClientCourses.tsx
+// src/components/client/ClientCourses.tsx
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { Course } from '../Interface/interfaces';
+import '../../assets/styles/ClientCourses.css';
 
 const ClientCourses: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -18,12 +19,11 @@ const ClientCourses: React.FC = () => {
   }, []);
 
   return (
-    <div>
-      <h2>Available Courses</h2>
+    <div className="courses">
       {courses.map(course => (
-        <div key={course.id}>
+        <div key={course.id} className="course-card">
           <h3>{course.title}</h3>
-          <img src={course.imageUrl} alt={course.title} style={{ width: '100px', height: 'auto' }} />
+          <img src={course.imageUrl} alt={course.title} />
           <p>{course.description}</p>
         </div>
       ))}

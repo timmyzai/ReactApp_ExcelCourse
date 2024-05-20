@@ -3,11 +3,12 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/Routes/ProtectedRoute';
-import AdminHome from './pages/admin/AdminHome';
-import Login from './pages/admin/Login';
-import Profile from './pages/admin/Profile';
-import ClientHome from './pages/client/ClientHome';
-import './App.css';
+import ClientHome from './components/client/ClientHome';
+import AdminHome from './components/admin/AdminHome';
+import Profile from './components/admin/Profile';
+import Login from './components/admin/Login';
+import './assets/styles/App.css';
+
 
 const App: React.FC = () => {
   return (

@@ -1,9 +1,11 @@
+// src/components/admin/AdminCourses.tsx
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../../firebase/firebase';
 import CourseCard from './CourseCard';
 import { Course } from '../Interface/interfaces';
+import '../../assets/styles/AdminCourses.css';
 
 const AdminCourses: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -45,8 +47,7 @@ const AdminCourses: React.FC = () => {
 
   return (
     <div>
-      <h2>Manage Courses</h2>
-      <form onSubmit={handleAddCourse}>
+      <form onSubmit={handleAddCourse} className="course-form">
         <input
           type="text"
           value={title}
@@ -68,9 +69,11 @@ const AdminCourses: React.FC = () => {
         />
         <button type="submit">Add Course</button>
       </form>
-      {courses.map(course => (
-        <CourseCard key={course.id} course={course} onDelete={handleDeleteCourse} />
-      ))}
+      <div className="courses-container">
+        {courses.map(course => (
+          <CourseCard key={course.id} course={course} onDelete={handleDeleteCourse} />
+        ))}
+      </div>
     </div>
   );
 };

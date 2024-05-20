@@ -1,0 +1,743 @@
+=== ./index.tsx ===
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+import './assets/styles/index.css';
+
+const root = ReactDOM.createRoot(
+  document.getElementById('root') as HTMLElement
+);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+reportWebVitals();
+=== ./App.tsx ===
+// src/App.tsx
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import ProtectedRoute from './components/Routes/ProtectedRoute';
+import ClientHome from './components/client/ClientHome';
+import AdminHome from './components/admin/AdminHome';
+import Profile from './components/admin/Profile';
+import Login from './components/admin/Login';
+import './assets/styles/App.css';
+
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<ClientHome />} />
+          <Route path="/admin/*" element={<AdminLayout />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+};
+
+const AdminLayout: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <Routes>
+      <Route path="/" element={isAuthenticated ? <Navigate to="/admin/home" replace /> : <Navigate to="/admin/login" replace />} />
+      <Route path="login" element={isAuthenticated ? <Navigate to="/admin/home" replace /> : <Login />} />
+      <Route path="home" element={<ProtectedRoute><AdminHome /></ProtectedRoute>} />
+      <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/admin/home" replace />} />
+    </Routes>
+  );
+};
+
+export default App;
+=== ./context/AuthContext.tsx ===
+// src/context/AuthContext.tsx
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+interface AuthContextType {
+  isAuthenticated: boolean;
+  login: () => void;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    () => JSON.parse(localStorage.getItem('isAuthenticated') || 'false')
+  );
+
+  useEffect(() => {
+    // Update local storage when isAuthenticated changes
+    localStorage.setItem('isAuthenticated', JSON.stringify(isAuthenticated));
+  }, [isAuthenticated]);
+
+  const login = () => setIsAuthenticated(true);
+  const logout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('isAuthenticated'); // Optionally clear the stored state on logout
+  };
+
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+=== ./App.test.tsx ===
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+=== ./setupTests.ts ===
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+=== ./reportWebVitals.ts ===
+import { ReportHandler } from 'web-vitals';
+
+const reportWebVitals = (onPerfEntry?: ReportHandler) => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+=== ./components/Interface/interfaces.tsx ===
+export interface Course {
+    id: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+}
+
+export interface AdminProfile {
+    id?: string;
+    name: string;
+    background: string;
+    profilePictureUrl: string;
+}
+=== ./components/admin/AdminProfile.tsx ===
+// src/components/admin/AdminProfile.tsx
+import React, { useState, useEffect } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../firebase/firebase';
+import { AdminProfile } from '../Interface/interfaces';
+import '../../assets/styles/AdminProfile.css';
+
+const AdminProfileComponent: React.FC = () => {
+  const [profile, setProfile] = useState<AdminProfile>({
+    name: '',
+    background: '',
+    profilePictureUrl: '',
+  });
+  const [profilePicture, setProfilePicture] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const adminProfileDocRef = doc(db, 'admin', 'profile');
+
+  const fetchProfile = async () => {
+    const docSnap = await getDoc(adminProfileDocRef);
+    if (docSnap.exists()) {
+      setProfile(docSnap.data() as AdminProfile);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleProfilePictureUpload = async (file: File): Promise<string> => {
+    const storageRef = ref(storage, `profilePictures/${file.name}`);
+    await uploadBytes(storageRef, file);
+    const downloadUrl = await getDownloadURL(storageRef);
+    return downloadUrl;
+  };
+
+  const handleSaveProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      let profilePictureUrl = profile.profilePictureUrl;
+      if (profilePicture) {
+        profilePictureUrl = await handleProfilePictureUpload(profilePicture);
+      }
+      const updatedProfile = { ...profile, profilePictureUrl };
+      await setDoc(adminProfileDocRef, updatedProfile);
+      setProfile(updatedProfile);
+    } catch (error) {
+      console.error('Error saving profile: ', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="profile-form">
+      <form onSubmit={handleSaveProfile}>
+        <label>
+          Name:
+          <input
+            type="text"
+            value={profile.name}
+            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Background:
+          <textarea
+            value={profile.background}
+            onChange={(e) => setProfile({ ...profile, background: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Profile Picture:
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setProfilePicture(e.target.files ? e.target.files[0] : null)}
+          />
+        </label>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Saving...' : 'Save Profile'}
+        </button>
+      </form>
+
+      <div className="saved-profile">
+        <h3>Saved Profile</h3>
+        <p><strong>Name:</strong> {profile.name}</p>
+        <p><strong>Background:</strong> {profile.background}</p>
+        {profile.profilePictureUrl && (
+          <img src={profile.profilePictureUrl} alt="Profile" style={{ width: '100px', height: 'auto' }} />
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminProfileComponent;
+=== ./components/admin/Login.tsx ===
+// src/pages/admin/Login.tsx
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';  // Ensure correct path
+
+const Login: React.FC = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+  const { login } = useAuth();  // Use login method from the auth context
+
+  // Hardcoded credentials
+  const hardcodedUsername = "test";
+  const hardcodedPassword = "test";
+
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (username === hardcodedUsername && password === hardcodedPassword) {
+      login();  // Update the auth state to logged in
+      navigate('/admin/home');
+    } else {
+      console.error("Authentication error: Invalid credentials");
+      alert('Invalid credentials');
+    }
+  };
+
+  return (
+    <div>
+      <form onSubmit={handleLogin}>
+        <input
+          type="text"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          placeholder="Username"
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="Password"
+          required
+        />
+        <button type="submit">Login</button>
+      </form>
+    </div>
+  );
+};
+
+export default Login;
+=== ./components/admin/AdminHome.tsx ===
+// src/components/admin/AdminHome.tsx
+import React from 'react';
+import AdminProfileComponent from './AdminProfile';
+import AdminCourses from './AdminCourses';
+import '../../assets/styles/AdminHome.css';
+
+const AdminHome: React.FC = () => {
+  return (
+    <div className="container">
+      <header>
+        <h1>Admin Dashboard</h1>
+      </header>
+      <main>
+        <section className="edit-profile">
+          <h2>Edit Profile</h2>
+          <AdminProfileComponent />
+        </section>
+        <section className="manage-courses">
+          <h2>Manage Courses</h2>
+          <AdminCourses />
+        </section>
+      </main>
+    </div>
+  );
+};
+
+export default AdminHome;
+=== ./components/admin/Profile.tsx ===
+// src/pages/admin/Profile.tsx
+import React, { useState, useEffect } from 'react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase/firebase';
+
+const Profile: React.FC = () => {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const profileDocRef = doc(db, "profiles", "adminProfile");
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const docSnap = await getDoc(profileDocRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setName(data.name);
+        setDescription(data.description);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await updateDoc(profileDocRef, { name, description });
+    alert('Profile updated!');
+  };
+
+  return (
+    <div>
+      <h1>Edit Profile</h1>
+      <form onSubmit={handleSubmit}>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Name" required />
+        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description" required />
+        <button type="submit">Update Profile</button>
+      </form>
+    </div>
+  );
+};
+
+export default Profile;
+=== ./components/admin/CourseCard.tsx ===
+// src/components/admin/CourseCard.tsx
+import React from 'react';
+import { Course } from '../Interface/interfaces';
+import '../../assets/styles/CourseCard.css';
+
+interface CourseCardProps {
+  course: Course;
+  onDelete: (id: string) => void;
+}
+
+const CourseCard: React.FC<CourseCardProps> = ({ course, onDelete }) => {
+  return (
+    <div className="course-card">
+      <h3>{course.title}</h3>
+      <img src={course.imageUrl} alt={course.title} />
+      <p>{course.description}</p>
+      <button onClick={() => onDelete(course.id)}>Delete</button>
+    </div>
+  );
+};
+
+export default CourseCard;
+=== ./components/admin/AdminCourses.tsx ===
+// src/components/admin/AdminCourses.tsx
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db } from '../../firebase/firebase';
+import CourseCard from './CourseCard';
+import { Course } from '../Interface/interfaces';
+import '../../assets/styles/AdminCourses.css';
+
+const AdminCourses: React.FC = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [image, setImage] = useState<File | null>(null);
+  const coursesCollectionRef = collection(db, "courses");
+
+  const fetchCourses = async () => {
+    const data = await getDocs(coursesCollectionRef);
+    setCourses(data.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Course[]);
+  };
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const handleAddCourse = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!title || !description || !image) return;
+
+    const storage = getStorage();
+    const imageRef = ref(storage, `courseImages/${image.name}`);
+    await uploadBytes(imageRef, image);
+    const imageUrl = await getDownloadURL(imageRef);
+
+    await addDoc(coursesCollectionRef, { title, description, imageUrl });
+    setTitle('');
+    setDescription('');
+    setImage(null);
+    fetchCourses();
+  };
+
+  const handleDeleteCourse = async (id: string) => {
+    const docRef = doc(db, "courses", id);
+    await deleteDoc(docRef);
+    fetchCourses();
+  };
+
+  return (
+    <div>
+      <form onSubmit={handleAddCourse} className="course-form">
+        <input
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Course Title"
+          required
+        />
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Course Description"
+          required
+        />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e => setImage(e.target.files ? e.target.files[0] : null)}
+          required
+        />
+        <button type="submit">Add Course</button>
+      </form>
+      <div className="courses-container">
+        {courses.map(course => (
+          <CourseCard key={course.id} course={course} onDelete={handleDeleteCourse} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default AdminCourses;
+=== ./components/client/ClientHome.tsx ===
+// src/components/client/ClientHome.tsx
+import React from 'react';
+import ClientShowAdminProfile from './ClientShowAdminProfile';
+
+import '../../assets/styles/ClientHome.css';
+import ClientCourses from './ClientCourse';
+
+const ClientHome: React.FC = () => {
+  return (
+    <div className="container">
+      <header>
+        <h1>Welcome to Our Training Courses</h1>
+      </header>
+      <main>
+        <section className="trainer-profile">
+          <h2>Trainer Profile</h2>
+          <ClientShowAdminProfile />
+        </section>
+        <section className="courses">
+          <h2>Available Courses</h2>
+          <ClientCourses />
+        </section>
+      </main>
+      <footer>
+        <p>Contact us at contact@trainingcourses.com</p>
+      </footer>
+    </div>
+  );
+};
+
+export default ClientHome;
+=== ./components/client/ClientShowAdminProfile.tsx ===
+// src/components/client/ClientShowAdminProfile.tsx
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase/firebase';
+import { AdminProfile } from '../Interface/interfaces';
+import '../../assets/styles/ClientShowAdminProfile.css';
+
+const ClientShowAdminProfile: React.FC = () => {
+  const [profile, setProfile] = useState<AdminProfile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const adminProfileCollectionRef = collection(db, 'admin');
+
+  const fetchProfile = async () => {
+    setLoading(true);
+    const querySnapshot = await getDocs(adminProfileCollectionRef);
+    const profileData = querySnapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as AdminProfile));
+    setProfile(profileData);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  return (
+    <div className="profile-container">
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <div className="profiles">
+          {profile.map((admin) => (
+            <div key={admin.id} className="profile-card">
+              <img src={admin.profilePictureUrl} alt={`${admin.name}'s profile`} className="profile-picture" />
+              <div className="profile-details">
+                <h2>{admin.name}</h2>
+                <p>{admin.background}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ClientShowAdminProfile;
+=== ./components/client/ClientCourse.tsx ===
+// src/components/client/ClientCourses.tsx
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase/firebase';
+import { Course } from '../Interface/interfaces';
+import '../../assets/styles/ClientCourses.css';
+
+const ClientCourses: React.FC = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const coursesCollectionRef = collection(db, "courses");
+
+  const fetchCourses = async () => {
+    const data = await getDocs(coursesCollectionRef);
+    setCourses(data.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Course[]);
+  };
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  return (
+    <div className="courses">
+      {courses.map(course => (
+        <div key={course.id} className="course-card">
+          <h3>{course.title}</h3>
+          <img src={course.imageUrl} alt={course.title} />
+          <p>{course.description}</p>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default ClientCourses;
+=== ./components/Routes/ProtectedRoute.tsx ===
+// src/components/ProtectedRoute.tsx
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+
+interface ProtectedRouteProps {
+  children: JSX.Element;
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+};
+
+
+export default ProtectedRoute;=== ./firebase/firebase.ts ===
+// src/firebase.js
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
+
+const firebaseConfig = {
+    apiKey: process.env.REACT_APP_API_KEY,
+    authDomain: process.env.REACT_APP_AUTH_DOMAIN,
+    projectId: process.env.REACT_APP_PROJECT_ID,
+    storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
+    messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+    appId: process.env.REACT_APP_APP_ID,
+    measurementId: process.env.REACT_APP_MEASUREMENT_ID
+};
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const storage = getStorage(app);
+=== ./firebase/storage/firebase.storage.ts ===
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+const storage = getStorage();
+
+export const uploadImage = async (file: File) => {
+    const storageRef = ref(storage, `courseImages/${file.name}`);
+    await uploadBytes(storageRef, file);
+    const downloadUrl = await getDownloadURL(storageRef);
+    return downloadUrl;
+};
+=== ./firebase/db/db.courses.ts ===
+import { db } from '../firebase';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, DocumentData } from "firebase/firestore";
+
+const courseCollectionRef = collection(db, "courses");
+
+// Fetching Courses with Error Handling
+export const getCourses = async (): Promise<Course[]> => {
+    try {
+        const querySnapshot = await getDocs(courseCollectionRef);
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as Course[];
+    } catch (error) {
+        console.error("Error fetching courses: ", error);
+        return [];
+    }
+};
+
+// Adding a Course with Error Handling
+export const addCourse = async (name: string, description: string, imageUrl: string): Promise<void> => {
+    try {
+        await addDoc(courseCollectionRef, { name, description, imageUrl });
+    } catch (error) {
+        console.error("Error adding course: ", error);
+    }
+};
+
+// Updating a Course with Error Handling
+export const updateCourse = async (id: string, updatedData: CourseUpdate): Promise<void> => {
+    try {
+        const courseDocRef = doc(db, "courses", id);
+        await updateDoc(courseDocRef, updatedData as DocumentData);
+    } catch (error) {
+        console.error("Error updating course: ", error);
+    }
+};
+
+// Deleting a Course with Error Handling
+export const deleteCourse = async (id: string): Promise<void> => {
+    try {
+        const courseDocRef = doc(db, "courses", id);
+        await deleteDoc(courseDocRef);
+    } catch (error) {
+        console.error("Error deleting course: ", error);
+    }
+};
+
+
+// Define an interface for what constitutes a course
+interface Course {
+    id: string;
+    name: string;
+    description: string;
+    imageUrl: string;
+}
+
+// Define an interface for the updates you might perform on a course
+interface CourseUpdate {
+    name?: string;
+    description?: string;
+    imageUrl?: string;
+}
+=== ./firebase/db/db.profile.ts ===
+// src/db/profile.ts
+import { AdminProfile } from '../../components/Interface/interfaces';
+import { db } from '../firebase';
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+// Firestore reference to the admin profile document
+const adminProfileDocRef = doc(db, 'admin', 'profile');
+
+// Fetch Admin Profile with Error Handling
+export const getAdminProfile = async (): Promise<AdminProfile | null> => {
+    try {
+        const docSnap = await getDoc(adminProfileDocRef);
+        if (docSnap.exists()) {
+            return docSnap.data() as AdminProfile;
+        } else {
+            console.error("No admin profile found");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching admin profile: ", error);
+        return null;
+    }
+};
+
+// Save Admin Profile with Error Handling
+export const saveAdminProfile = async (profile: AdminProfile): Promise<void> => {
+    try {
+        await setDoc(adminProfileDocRef, profile);
+    } catch (error) {
+        console.error("Error saving admin profile: ", error);
+    }
+};
+=== ./react-app-env.d.ts ===
+/// <reference types="react-scripts" />

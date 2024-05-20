@@ -1,0 +1,17 @@
+/* Updated AdminHome.css */
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+header,
+footer {
+    width: 100%;
+}
+
+.edit-profile,
+.manage-courses {
+    width: 100%;
+    margin: 20px 0;
+}
